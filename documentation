@@ -1,0 +1,131 @@
+ThinkPHP5使用文档
+    1. 通过php自带的WebServer，并且运行router.php来运行测试
+        php -S localhost:8888 router.php
+        接下来可以直接访问http://localhost:8888
+
+    2. 5.0版本采用模块化的设计架构，默认的应用目录下面只有一个index模块目录，如果我要添加新的模块可以使用控制台命令
+    来生成。
+        切换到命令行模式下，进入到应用根目录并执行命令
+        php think build --module demo
+        就会生成一个默认的demo模块
+
+    3. 开启或关闭调试模式
+        修改配置文件config.php中的app_debug配置
+            'app_debug' =>  true|false
+
+    4. url访问
+        4.1 标准的URL访问格式：
+            http://servername/index.php/模块/控制器/操作
+        4.2 如果开启了"url_convert" => true 即大小写转换，url中的模块、控制器、操作可以不区分大小写
+        4.3 驼峰格式的控制器 在url访问中应该将其转换为下划线的形式的名称(HelloWord控制器 的访问形式 ---》index.php/index/hello_word/index )
+        4.4 如果希望严格区分大小写访问（或者要支持驼峰法进行控制器访问），可以在应用配置文件中设置：
+            "url_convert" => false
+            注意：模块的文件夹名称 必须是小写字母
+
+    5.定义路由
+        如果我们想要简化url地址的写法，可以在 application/route.php 里面添加一些路由规则
+        eg1:
+            retrun [
+                'hello/:name' => 'index/index/hello',
+            ]
+            该规则表示所有hello开头的并且带有参数的访问都会路由到index模块的index控制器的hello方法
+        然后url的形式就变成了:http://ServerName/index.php/hello
+        注意: 定义路由规则之后，原来的URL地址将会失效，变成非法的请求。
+        注意: 路由配置不支持在模块配置文件中设置。
+        eg2:
+            return [
+                'hello/:name$' => 'index/index/hello1',
+            ]
+            该规则表示凡是以hello开头的并且以一个参数name结尾的url会指定到index模块的index控制器的hello1方法
+        eg3:
+            retrun [
+                'hell0/[:name]' => ['index/index/hello',['method'=>'get','ext'=>'html']],
+            ]
+            该规则限制了必须是get请求，而且后缀必须是html
+
+
+    6. 生成URL地址
+        第一种方式：
+        Url::build('blog/read','name=thinkphp');
+        Url::build('blog/get',['name'=>'thinkphp','id'=>1]);
+        Url::build('blog/read','name=thinkphp&id=1');
+        注意：build方法的第一个参数使用路由定义中的完整路由地址
+        第二种方式：使用助手函数url来简化
+        url('blog/read','name=thinkphp');
+
+    7.请求和响应
+        7.1 获取当前页面的url地址（不含域名）
+            第一种方式：
+            $request = Request::instance();
+            $url = $request->url();
+            第二种方式：如果控制器继承了think\Controller类的话，可以简化
+            $url = $this->request->url();
+            第三种方式: 如果控制器没有继承think\Controller类，可以使用Request对象注入的方式来简化调用
+            use think\Request;
+            public function hello(Request $request,$name='World'){
+                $url = $request->url();
+            }
+            第四种方式:使用助手函数request();
+            $url = request()->url();
+        7.2 动态属性绑定  ******************
+            可以给Request请求对象绑定属性，方便全局调用，例如我们可以在公共控制器中绑定当前登录的用户模型到
+            请求对象：
+            请查看ThinkPHP5快速入门手册---》34-35页
+        7.3 获取请求变量(查看ThinkPHP5快速入门---》38页)
+            全局过滤方法的配置(application/config.php)
+                'default_filter' => 'htmlspecialchars',
+            第一种方式：
+            public function hello(Request $request){
+                //param方法
+                //$id = $request -> param(['参数名称'],['默认值'],['过滤函数']);
+                $request -> param();//所有的参数
+                $name = $request -> param('name');//获取name
+                $id = $request -> param('user_id',1,'int');
+                //get方法
+                $get = $request->get();
+                $name = $request->get('name');
+                //post方法
+                $name = $request -> post('name');
+                //cookie方法
+                $user_id = $request -> cookie('user_id');
+                //file方法
+                $file = $request -> file('image');
+            }
+            第二种方式：使用助手函数input()简化Request对象的param方法
+            $name = input('name');//获取name
+            $get = input('get.');//获取GET参数
+            $name = input('get.name');//获取name
+            ...
+            参数的优先级：路由变量 > 当前请求变量（$_POST变量） > $_GET变量
+            说明：路由变量是指路由规则里面定义的变量或者 PATH_INFO 地址中的变量。路由变量无法使用get方法或者$_GET变量获取。
+        7.4 获取请求参数
+                获取请求方法         $request -> method();
+                获取资源类型         $request -> type();
+                获取ip地址           $request -> ip();
+                是否是AJAX请求       $request -> isAjax();
+                获取请求参数         $request -> param();
+                请求参数：仅包含name $request->only(['name'])
+                请求参数：排除name   $request ->except(['name']);
+        7.5 获取URL信息
+                获取当前域名          $request -> domain();
+                入口文件              $request -> baseFile();
+                当前url（不含域名）   $request -> url();
+                当前url（包含域名）   $request -> url(true);
+                获取当前URL地址 不含QUERY_STRING    $request -> baseUrl();
+                获取URL访问的ROOT地址  $request -> root();
+                获取URL访问的ROOT地址  $request->root(true);
+                获取URL地址中的PATH_INFO信息    $request -> pathinfo();
+                获取URL地址中的PATH_INFO信息 不含后缀  $request -> path();
+                获取URL地址中的后缀信息   $request -> ext();
+        7.6 获取当前模块、控制器、操作信息
+                $request -> controller();
+                $request -> module();
+                $request -> action();
+        7.7 页面重定向
+                第一种方式：$this->redirect();
+                第二种方式:使用助手函数redirect();
+
+
+    //5. 模块文件夹的名称必须采用小写的形式
+
+
