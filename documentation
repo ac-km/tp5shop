@@ -125,7 +125,136 @@ ThinkPHP5使用文档
                 第一种方式：$this->redirect();
                 第二种方式:使用助手函数redirect();
 
+        //5. 模块文件夹的名称必须采用小写的形式
 
-    //5. 模块文件夹的名称必须采用小写的形式
+    数据模型 ************************************
+        1. 数据模型的常规操作请查看ThinkPHP5.0快速入门手册的相关部分
+        2. 读取器 在读取数据模型的时候，对于某些字段，例如date类型的字段，在输出的时候需要使用date函数进行转换，使用读取器
+           可以简化该操作
+            2.1 读取器方法的命名规范是：
+                get + 属性名的驼峰命名+ Attr
+                eg:
+                在模型中定义一个方法
+                    protected function getBirthdayAttr($birthday){
+                        return date('Y-m-d',$birthday);
+                    }
+                在控制器中，读取该字段的时候就会字段的将birthday字段转换为'Y-m-d'的形式
+            2.2 读取器还可以定义读取数据表中不存在的属性，例如把原始生日和转换的格式分开两个属性 birthday 和user_birthday ，
+            我们只需定义 user_birthday 属性的读取器方法：
+                eg:
+                protected function getUserBirthdayAttr($value,$data){
+                    return date('Y-m-d',$data['birthday']);
+                }
+                在控制器中：
+                public function read($id){
+                        $user = UserModel::get($id);
+                        echo $user->id . '<br>';
+                        echo $user->nickname . '<br>';
+                        echo $user->email . '<br>';
+                        echo $user->user_birthday . '<br>';
+                }
+        3. 修改器 在对模型进行新增或修改的时候，对于某些字段，例如date类型的字段，在写入之前需要对数据进行strtotime转换，
+           使用修改器可以简化该操作。
+           3.1 修改器的命名规范：
+               set + 属性名的驼峰命名 + Attr
+           3.2 在控制器中
+                eg:
+                 public function add(){
+                        $user['nickname'] = '看风';
+                        $user['email'] = 'kanwind@qq.com';
+                        $user['birthday'] = '2010-04-02';  //这里使用了修改器。故省略了strtotime函数
+                        if($result = UserModel::create($user)){
+                            return '用户[' . $result['nickname'] . ':' .$result->id . ']新增成功';
+                        }else{
+                            return '新增出错';
+                        }
+                 }
+        4. 类型转换
+           对于前面的时间戳 birthday 的例子，还可以进行进一步的简化，这里需要用到类型强制转换的功能，在User 模型类中添加
+           定义：
+                protected $type = [
+                    // 设置birthday为时间戳类型（整型）
+                    'birthday' => 'timestamp:Y/m/d',
+                ];
+                不需要定义任何修改器和读取器，我们完成了相同的功能。
+           ThinkPHP5.0支持的类型转换：查看快速入门86-87页
+        5.自动时间戳
+           对于固定的时间戳和时间日期型的字段，例如文章的创建时间、修改时间等字段，还有比设置类型转换更简单的方法，尤其是
+           所有的数据表统一处理的话，只需要在数据库配置文件中添加设置：
+               1. // 开启自动写入时间戳字段
+                  'auto_timestamp' => true,//会自动去更新数据表中的cerate_time、update_time字段
+               2. //如果数据表自动写入的时间戳字段不是create_time、update_time字段，则可以在相应的模型中去修改：
+                  protected $createTime = 'create_at';
+                  protected $updateTime = 'update_at';
+               3. //如果个别数据表不需要自动写入时间戳字段，可以在相应的模型中直接关闭
+                  protected $autoWriteTimestamp = false;
+               4. //默认的时间戳类型是整形，如果需要使用其他的时间字段类型，可以修改模型
+                  protected $autoWriteTimestamp = 'datetime';
+                  //还可以在配置文件中去设置
+                  'auto_timestamp' => 'datetime'
+                  说明：表的字段类型也必须要是相应的类型
+        6. 自动完成
+           如果我们希望自动写入其他的字段，则可以使用自动完成功能。
+                自动完成共有三个属性定义：
+                    auto    新增及更新的时候自动完成的属性数组
+                    insert  仅新增的时候自动完成的属性数组
+                    update  仅更新的时候自动完成的属性数组
+               1. eg:
+                  //向模型中插入数据的时候，实现自动写入status字段
+                  //在该模型中定义
+                  protected $insert = ['status' => 1]
+               2. eg:
+                  //如果status属性的值不是固定的，而是需要条件判断，那么我们可以定义修改器来配合自动完成。
+                  protected $insert = ['status'];
+                  //修改器
+                  protected function setStatusAttr($value,$data){
+                       return '流年' == $data['nickname'] ? 1 : 2 ;
+                  }
+                  //读取器
+                  protected function getStatusAttr($value){
+                       $status = [-1 => '删除', 0 => '禁用', 1 => '正常', 2 => '待审核'];
+                       return $status[$value];
+                  }
+        7. 查询范围
+           对于一些常用的查询条件，我们可以封装成查询范围来进行方便的调用
+               7.1 查询范围方法的定义规范为：
+                        scope + 查询范围名称
+                   eg:
+                       //1. 在模型中定义
+                       //email查询
+                       protected function scopeEmail($query){
+                            $query -> where('email','thinkphp@qq.com');
+                       }
+                       //2. 在控制器中使用
+                       public function index(){
+                            $list = UserModel::scope('email') -> all();
+                            ...
+                       }
+               7.2 支持多次调用 scope 方法，并且可以追加新的查询及链式操作
+               7.3 查询范围方法支持额外的参数
+                   eg:
+                   protected function scopeEmail($query,$email = ''){
+                         $query -> where('email',$email);
+                   }
+                   在控制器中使用
+                   $list = UserModel :: scope('email','thinkphp@qq.com') -> all();
+        8. 全局查询范围
+                    eg:
+                    //在模型中定义
+                    // 全局查询范围
+                    protected static function base($query)
+                    {
+                        // 查询状态为1的数据
+                        $query->where('status',1);
+                    }
+                    //控制器中使用
+                    //每次查询都会自动带上全局查询范围的查询条件。
+                    UserModel :: scope('email')->all();
+    输入和验证 ************************************ 快速入门96页
+
+
+
+
+
 
 
